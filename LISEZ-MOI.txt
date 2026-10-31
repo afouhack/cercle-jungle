@@ -1,0 +1,43 @@
+LE CERCLE DE LA JUNGLE — installer sur iPhone sans ordinateur
+==============================================================
+
+Tous les fichiers sont à plat (pas de sous-dossier) : on peut les envoyer
+directement depuis l'iPhone.
+
+ÉTAPE 1 — Décompresser (app Fichiers)
+  Touchez le fichier .zip dans l'app Fichiers : un dossier « cercle-jungle-iphone »
+  apparaît à côté, avec 8 fichiers.
+
+ÉTAPE 2 — Mettre en ligne avec GitHub Pages (gratuit)
+  1. Dans Safari, créez un compte sur github.com (si vous n'en avez pas).
+  2. Bouton « + » en haut › « New repository ».
+     Nom : cercle-jungle   ·   Public   ·   « Create repository ».
+  3. Sur la page du dépôt, touchez le lien « uploading an existing file ».
+     (Si le lien n'apparaît pas : bouton « aA » de Safari ›
+      « Demander le site pour ordinateur ».)
+  4. « choose your files » › sélectionnez les 8 fichiers du dossier
+     (Sélectionner › Tout sélectionner) › « Commit changes ».
+  5. Onglet « Settings » › « Pages » (dans le menu).
+     Source : « Deploy from a branch » › Branch : « main », dossier « / (root) »
+     › « Save ».
+  6. Attendez 1 à 2 minutes et rechargez : l'adresse s'affiche en haut,
+     du type  https://votre-nom.github.io/cercle-jungle/
+
+ÉTAPE 3 — Installer
+  1. Ouvrez cette adresse dans Safari.
+  2. Partager (carré avec une flèche) › « Sur l'écran d'accueil » › « Ajouter ».
+  3. Ouvrez l'appli une fois avec du réseau : ensuite elle marche hors connexion.
+
+VOS ÉVÉNEMENTS
+  Ils restent sur le téléphone, dans l'appli. Pour les sauvegarder :
+  Mes événements › Télécharger le modèle (le tableau contient tous vos
+  événements) › Enregistrer dans Fichiers. Supprimer l'appli efface ses données.
+
+METTRE À JOUR
+  Renvoyez les nouveaux fichiers dans le dépôt GitHub (même méthode),
+  en augmentant  const VERSION = "v2";  dans sw.js : "v3", puis "v4"…
+
+AVEC UN ORDINATEUR (plus rapide)
+  Ouvrez https://app.netlify.com/drop et déposez-y le .zip tel quel.
+  Créez un compte pour garder le site : sans compte, il reste protégé par un
+  mot de passe temporaire.

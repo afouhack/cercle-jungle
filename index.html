@@ -1,0 +1,1174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbfaf7">
+<meta name="description" content="Touchez le cercle, l'énigme remonte des profondeurs. Générateur d'événements pour vos parties de jeu de rôle dans la jungle.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cercle Jungle">
+<title>Le Cercle de la Jungle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* Layout: papier blanc, illustration encre + aquarelle. Le cercle est l'objet central ; la navigation et le bouton du MJ sont à l'encre, en dessous. Un seul look clair, volontairement. */
+:root {
+  --paper: #fbfaf7;
+  --ink: #1b1b1a;
+  --ink-soft: #5a5a55;
+  --gold: #e8bd45;
+  --c-bete: #c9883e;
+  --c-plante: #7aa04a;
+  --c-element: #4f93a3;
+  --c-piege: #b4584d;
+  --c-chasseur: #8a5fa6;
+  --c-repit: #d2b23c;
+  --c-rencontre: #3f8070;
+  --c-tresor: #b08a2a;
+  --c-malediction: #8c3b4a;
+  --c-enigme: #4f63a0;
+  --display: "Rye", "Rockwell", Georgia, serif;
+  --body: "Crimson Pro", Georgia, serif;
+  color-scheme: light;
+}
+html, body { min-height: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 480px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+header { text-align: center; display: grid; gap: 6px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 7vw, 2.2rem); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+.sub { margin: 0; color: var(--ink-soft); font-style: italic; text-wrap: balance; }
+.swipe-hint { display: none; }
+@media (hover: none) and (pointer: coarse) { .swipe-hint { display: inline; } .tap-hint { display: none; } }
+
+/* Le cercle */
+.orb {
+  all: unset; cursor: pointer; position: relative; display: block;
+  width: min(94vw, 440px); max-width: 100%; aspect-ratio: 1;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.orb:focus-visible { outline: 2px dashed var(--ink); outline-offset: 6px; border-radius: 50%; }
+.orb svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.murk { transform-origin: 230px 230px; }
+.orb.rolling .murk { animation: swirl 5s ease-in-out; }
+@keyframes swirl { 45% { transform: rotate(70deg) scale(1.06); } }
+.glow { transition: opacity 3s ease; }
+.textbox { position: absolute; left: 50%; top: 50%; width: 66%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.msg {
+  font-family: var(--display); color: var(--gold);
+  font-size: clamp(13px, 3.7vw, 17.5px); line-height: 1.45;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  margin: 0; --dx: 0px;
+}
+.w { display: inline-block; white-space: nowrap; margin-inline: .14em; }
+.ch { display: inline-block; }
+/* Sortie : chaque lettre coule dans l'eau trouble, en dérivant dans le sens du geste */
+.msg.leave .ch { animation: sink 2s cubic-bezier(.45,0,.7,.4) forwards; animation-delay: var(--d, 0ms); }
+@keyframes sink {
+  40% { opacity: .8; filter: blur(1px); }
+  to { translate: calc(var(--dx) + var(--sx) * .6) calc(26px + var(--sy) * .3); rotate: var(--r); scale: .5; opacity: 0; filter: blur(9px); }
+}
+/* Entrée : comme dans le film, les lettres émergent lentement du vert trouble, dispersées, puis se rassemblent */
+.msg.enter .ch { animation: rise 3.2s cubic-bezier(.12,.75,.25,1) both; animation-delay: var(--d, 0ms); }
+@keyframes rise {
+  0% { translate: calc(var(--dx) * -1 + var(--sx)) var(--sy); rotate: var(--r); scale: .35; opacity: 0; filter: blur(12px); }
+  35% { opacity: .35; filter: blur(6px); }
+  100% { translate: 0 0; rotate: 0deg; scale: 1; opacity: 1; filter: blur(0); }
+}
+
+/* Navigation entre les tours */
+.nav { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.arrow {
+  all: unset; cursor: pointer; width: 40px; height: 40px; border-radius: 50%;
+  border: 1.5px solid var(--ink); display: grid; place-items: center;
+  font-family: var(--display); font-size: 1.2rem; line-height: 1;
+}
+.arrow:disabled { opacity: .25; cursor: default; }
+.arrow:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.turn { font-family: var(--display); font-size: 1rem; min-width: 9ch; text-align: center; font-variant-numeric: tabular-nums; }
+.turn.past { color: var(--ink-soft); }
+.turn.nudge, .step.nudge { animation: nudge .4s ease; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.step { margin: 0; text-align: center; color: var(--ink-soft); font-style: italic; min-height: 1.4em; text-wrap: balance; }
+.step.alert { color: var(--ink); }
+
+/* Bouton du MJ */
+.mj {
+  all: unset; box-sizing: border-box; cursor: pointer; width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 16px 20px; border-radius: 14px;
+  background: var(--ink); color: var(--gold);
+  font-family: var(--display); font-size: 1.15rem; letter-spacing: .02em;
+  box-shadow: 4px 4px 0 var(--c-piege);
+}
+.mj svg { width: 26px; height: 26px; flex: none; }
+.mj:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--c-piege); }
+.mj:focus-visible { outline: 3px dashed var(--ink); outline-offset: 4px; }
+.mj.open { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: none; }
+.mj.waiting { animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 4px 4px 0 var(--c-piege), 0 0 0 6px rgba(180,88,77,.18); } }
+
+/* Fiche MJ */
+.card { width: 100%; display: grid; gap: 8px; padding: 14px 16px; border: 2px solid var(--ink); border-radius: 14px; box-sizing: border-box; }
+.row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; justify-content: space-between; }
+.tag { font-family: var(--display); font-size: 1rem; display: inline-flex; align-items: center; gap: 8px; }
+.blob { width: 18px; height: 14px; border-radius: 50% 45% 55% 40%; filter: blur(.6px); display: inline-block; }
+.dice { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.double { margin: 0; font-style: italic; }
+.effet { margin: 0; line-height: 1.5; }
+.effet b { font-weight: 600; }
+
+/* Mes événements (MJ) */
+.own { width: 100%; border-top: 1.5px solid var(--ink); padding-top: 12px; }
+.own summary { font-family: var(--display); font-size: 1.05rem; cursor: pointer; }
+.own summary:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.own-count { font-family: var(--body); color: var(--ink-soft); font-size: .95rem; }
+.own-intro { color: var(--ink-soft); font-style: italic; margin: 10px 0 12px; }
+.own-form { display: grid; gap: 6px; }
+.own-form label { font-weight: 600; font-size: .95rem; margin-top: 6px; }
+.own-form select, .own-form textarea {
+  font: inherit; font-size: 16px; color: var(--ink); background: #fff;
+  border: 1.5px solid var(--ink); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box;
+}
+.own-form textarea { resize: vertical; line-height: 1.4; }
+.own-form select:focus-visible, .own-form textarea:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.own-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.own-add {
+  all: unset; cursor: pointer; font-family: var(--display); padding: 10px 18px; border-radius: 10px;
+  background: var(--ink); color: var(--gold);
+}
+.own-add:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.own-note { color: var(--ink-soft); font-size: .95rem; }
+.own-only { display: flex; align-items: center; gap: 8px; margin: 16px 0 6px; }
+.own-only input { width: 18px; height: 18px; accent-color: var(--ink); }
+.own-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.own-list li { border: 1.5px solid var(--ink); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; }
+.own-list .tag { font-size: .9rem; }
+.own-list .v { font-style: italic; }
+.own-list .e { color: var(--ink-soft); font-size: .95rem; }
+.own-list .del { all: unset; cursor: pointer; justify-self: start; color: var(--c-piege); text-decoration: underline; text-underline-offset: 3px; font-size: .9rem; }
+.own-list .del:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+/* Préparer la partie */
+.plan-h { font-family: var(--display); font-weight: 400; font-size: 1rem; margin: 16px 0 8px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.plan-filter { font: inherit; font-size: 16px; color: var(--ink); background: #fff; border: 1.5px solid var(--ink); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; }
+.plan-filter:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.own-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tool {
+  all: unset; box-sizing: border-box; cursor: pointer; display: grid; justify-items: center; align-content: start; gap: 6px;
+  padding: 12px 6px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--paper);
+  font-size: .85rem; line-height: 1.2; text-align: center; color: var(--ink);
+}
+.tool svg { width: 26px; height: 26px; }
+.tool:focus-visible, .own-tools:has(#tplFile:focus-visible) label.tool { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.tool[aria-expanded="true"] { background: var(--ink); color: var(--gold); }
+.own-form { margin-top: 12px; }
+.own-tools + .own-note:empty { display: none; }
+.own-tools + .own-note { margin-top: 8px; }
+.sheet { margin-top: 18px; padding-top: 4px; border-top: 1px dashed rgba(27,27,26,.35); }
+.file-btn { display: inline-block; }
+#tplFile:focus-visible + * , .file-btn:focus-within { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.import-preview { margin-top: 12px; border: 2px solid var(--ink); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.ip-sum { margin: 0; font-weight: 600; }
+.ip-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.ip-list li { font-size: .93rem; line-height: 1.35; border-bottom: 1px solid rgba(27,27,26,.15); padding-bottom: 6px; }
+.ip-list li b { font-family: var(--display); font-weight: 400; }
+.ip-skip { margin: 0; color: var(--c-piege); font-size: .92rem; }
+.cat-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
+.cat {
+  all: unset; box-sizing: border-box; cursor: pointer; display: grid; justify-items: center; gap: 4px;
+  padding: 8px 4px 6px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--paper);
+  font-size: .78rem; line-height: 1.1; text-align: center; color: var(--ink);
+}
+.cat svg { width: 26px; height: 26px; }
+.cat:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.cat[aria-pressed="true"] { background: var(--ink); color: var(--gold); }
+.cat .dot { width: 22px; height: 4px; border-radius: 2px; }
+.cat.mine { border-width: 2.5px; }
+.own-add.ghost { background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); }
+.del-all { all: unset; cursor: pointer; color: var(--c-piege); text-decoration: underline; text-underline-offset: 3px; font-size: .95rem; }
+.del-all:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.plan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; counter-reset: p; }
+.plan-list li {
+  counter-increment: p; display: grid; grid-template-columns: 2.4ch 1fr auto; gap: 10px; align-items: start;
+  border: 1.5px solid var(--ink); border-radius: 12px; padding: 10px 10px 10px 12px;
+}
+.plan-list li::before { content: counter(p); font-family: var(--display); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.plan-list li.done { opacity: .45; }
+.plan-list li.next { border-width: 2.5px; }
+.plan-list li.next::after { content: "Prochain tour"; grid-column: 2 / -1; font-size: .85rem; font-style: italic; color: var(--ink-soft); }
+.plan-list .body { min-width: 0; display: grid; gap: 2px; }
+.plan-list .v { font-style: italic; font-size: .95rem; line-height: 1.35; }
+.plan-list .tools { display: flex; gap: 4px; }
+.mini { all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid var(--ink); display: grid; place-items: center; font-size: .95rem; line-height: 1; }
+.mini:disabled { opacity: .25; cursor: default; }
+.mini:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.plan-empty { color: var(--ink-soft); font-style: italic; }
+.plan-pick { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.plan-pick li { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border-bottom: 1px solid rgba(27,27,26,.18); padding-bottom: 8px; }
+.plan-pick .v { min-width: 0; font-size: .95rem; line-height: 1.35; }
+.plan-pick .v small { display: block; color: var(--ink-soft); font-size: .85rem; }
+.plan-pick .add { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 8px; background: var(--ink); color: var(--gold); font-family: var(--display); font-size: .9rem; white-space: nowrap; }
+.plan-pick .add:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+.plan-pick .add.ok { background: var(--c-plante); color: var(--paper); }
+.own-empty { color: var(--ink-soft); font-style: italic; border: none !important; padding: 0 !important; }
+
+.reset { all: unset; cursor: pointer; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; font-size: .95rem; }
+.reset.confirm { color: var(--c-piege); }
+.reset:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .glow { transition: none; }
+  .msg.leave .ch { animation: fadeout 1.2s ease forwards; }
+  .msg.enter .ch { animation: fadein 2s ease both; animation-delay: 0ms; }
+  @keyframes fadeout { to { opacity: 0; } }
+  @keyframes fadein { from { opacity: 0; } }
+  .orb.rolling .murk, .mj.waiting, .turn.nudge, .step.nudge { animation: none; }
+}
+</style>
+
+<style>
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Le Cercle de la Jungle</h1>
+    <p class="sub"><span class="tap-hint">Touchez le cercle pour jouer un tour. Flèches pour revoir les tours passés.</span><span class="swipe-hint">Glissez vers la gauche pour jouer, vers la droite pour revoir les tours passés.</span></p>
+    </header>
+
+  <button class="orb" id="orb" aria-label="Jouer le tour suivant">
+    <svg viewBox="0 0 460 460" aria-hidden="true">
+      <defs>
+        <filter id="wobble" x="-10%" y="-10%" width="120%" height="120%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/>
+          <feDisplacementMap in="SourceGraphic" scale="5"/>
+        </filter>
+        <filter id="wash" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="9" result="n"/>
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="18"/>
+          <feGaussianBlur stdDeviation="3"/>
+        </filter>
+        <filter id="mottle" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="2"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 0.6  0 0 0 0 0.7  0 0 0 0 0.6  0 0 0 0.55 -0.12"/>
+        </filter>
+        <filter id="glowblur" x="-60%" y="-90%" width="220%" height="280%"><feGaussianBlur stdDeviation="22"/></filter>
+        <radialGradient id="rimShade" cx="50%" cy="50%" r="50%">
+          <stop offset="72%" stop-color="#9a9a96" stop-opacity=".55"/>
+          <stop offset="82%" stop-color="#ffffff" stop-opacity="0"/>
+          <stop offset="96%" stop-color="#b5b5b0" stop-opacity=".5"/>
+        </radialGradient>
+        <radialGradient id="murkGrad" cx="50%" cy="45%" r="55%">
+          <stop offset="0%" stop-color="#3b4a39"/>
+          <stop offset="70%" stop-color="#2e3b2d"/>
+          <stop offset="100%" stop-color="#1f281f"/>
+        </radialGradient>
+        <clipPath id="inner"><circle cx="230" cy="230" r="164"/></clipPath>
+      </defs>
+      <ellipse cx="238" cy="246" rx="214" ry="206" fill="#bdbdb8" opacity=".55" filter="url(#wash)"/>
+      <circle cx="230" cy="230" r="208" fill="#f6f6f3"/>
+      <circle cx="230" cy="230" r="208" fill="url(#rimShade)" filter="url(#wash)"/>
+      <g id="ticks" stroke="#1b1b1a" stroke-width="1.6" stroke-linecap="round" fill="none" filter="url(#wobble)"></g>
+      <circle cx="230" cy="230" r="208" fill="none" stroke="#1b1b1a" stroke-width="3.2" filter="url(#wobble)"/>
+      <g clip-path="url(#inner)">
+        <g class="murk">
+          <rect x="40" y="40" width="380" height="380" fill="url(#murkGrad)"/>
+          <rect x="40" y="40" width="380" height="380" filter="url(#mottle)"/>
+        </g>
+        <ellipse class="glow" id="glow" cx="230" cy="232" rx="125" ry="70" fill="#d8b23a" opacity=".42" filter="url(#glowblur)"/>
+      </g>
+      <circle cx="230" cy="230" r="164" fill="none" stroke="#1b1b1a" stroke-width="3" filter="url(#wobble)"/>
+    </svg>
+    <div class="textbox"><p class="msg" id="msg"></p></div>
+  </button>
+
+  <div class="nav">
+    <button class="arrow" id="prev" aria-label="Tour précédent">‹</button>
+    <span class="turn" id="turn" aria-live="polite">Aucun tour</span>
+    <button class="arrow" id="next" aria-label="Tour suivant">›</button>
+  </div>
+
+  <p class="step" id="step"></p>
+
+  <button class="mj" id="mj" hidden>
+    <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 13s4-7 11-7 11 7 11 7-4 7-11 7S2 13 2 13z"/><circle cx="13" cy="13" r="3.4"/></svg>
+    <span id="mjLabel">MJ · Révéler l'effet</span>
+  </button>
+
+  <section class="card" id="card" hidden>
+    <span class="tag"><span class="blob" id="blob"></span><span id="tag"></span></span>
+    <p class="effet" id="effet"></p>
+  </section>
+
+  <details class="own" id="own">
+    <summary>Mes événements <span class="own-count" id="ownCount"></span></summary>
+    <p class="own-intro">Réservé au MJ. Vos événements rejoignent le tirage, mélangés à ceux de base. Pour en préparer beaucoup d'un coup, remplissez le modèle dans un tableur puis importez-le.</p>
+    <div class="own-tools">
+      <button type="button" class="tool" id="ownToggle" aria-expanded="false" aria-controls="ownForm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Ajouter un événement</span>
+      </button>
+      <button type="button" class="tool" id="tplDownload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+        <span>Télécharger le modèle</span>
+      </button>
+      <label class="tool" for="tplFile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>
+        <span>Importer un tableau</span>
+      </label>
+      <input type="file" id="tplFile" accept=".csv,.xlsx,.xls,.tsv,.txt,text/csv" class="sr">
+    </div>
+    <p class="own-note" id="tplNote" role="status"></p>
+
+    <form id="ownForm" class="own-form" hidden>
+      <label for="ownCat">Catégorie</label>
+      <select id="ownCat"></select>
+      <label for="ownVerse">Énigme lue par les joueurs</label>
+      <textarea id="ownVerse" rows="3" maxlength="220" required placeholder="Ex. : Un tambour résonne sous la terre ; quand il se tait, gare à la poussière."></textarea>
+      <label for="ownEffet">Effet pour le MJ</label>
+      <textarea id="ownEffet" rows="3" maxlength="400" required placeholder="Ex. : Un éboulement bloque le tunnel. Jet de force pour dégager le passage."></textarea>
+      <div class="own-actions">
+        <button type="submit" class="own-add">Enregistrer</button>
+        <button type="button" class="del-all" id="ownCancel">Fermer</button>
+        <span class="own-note" id="ownNote" role="status"></span>
+      </div>
+    </form>
+
+    <div class="import-preview" id="importPreview" hidden>
+      <p class="ip-sum" id="ipSum"></p>
+      <ul class="ip-list" id="ipList"></ul>
+      <p class="ip-skip" id="ipSkip" hidden></p>
+      <div class="own-actions">
+        <button type="button" class="own-add" id="ipAdd">Ajouter</button>
+        <button type="button" class="del-all" id="ipCancel">Annuler</button>
+      </div>
+    </div>
+    <label class="own-only"><input type="checkbox" id="ownOnly"> Ne tirer que mes événements</label>
+    <ul class="own-list" id="ownList"></ul>
+  </details>
+
+  <details class="own plan" id="plan">
+    <summary>Préparer la partie <span class="own-count" id="planCount"></span></summary>
+    <p class="own-intro">Réservé au MJ. Choisissez à l'avance les événements et leur ordre. Les tours suivent cette liste, puis le hasard reprend quand elle est finie.</p>
+
+    <h3 class="plan-h">Ordre prévu</h3>
+    <ol class="plan-list" id="planList"></ol>
+    <div class="own-actions">
+      <button type="button" class="own-add ghost" id="planRandom">+ Un tour au hasard</button>
+      <button type="button" class="del-all" id="planClear" hidden>Vider la liste</button>
+    </div>
+
+    <h3 class="plan-h">Ajouter un événement</h3>
+    <div class="cat-row" id="planFilter" role="group" aria-label="Catégorie"></div>
+    <ul class="plan-pick" id="planPick"></ul>
+  </details>
+
+  <button class="reset" id="reset" hidden>Nouvelle partie</button>
+</div>
+
+<script>
+const IDLE = "À son tour de jeu, chaque PJ ou PNJ doit lancer les deux dés pour découvrir quel événement va se produire.";
+
+// Catégories et poids de tirage (plus le poids est haut, plus la catégorie sort souvent)
+const CAT = {
+  bete:        { label: "Bête",        color: "var(--c-bete)",        w: 15 },
+  plante:      { label: "Plante",      color: "var(--c-plante)",      w: 10 },
+  element:     { label: "Élément",     color: "var(--c-element)",     w: 10 },
+  piege:       { label: "Piège",       color: "var(--c-piege)",       w: 12 },
+  rencontre:   { label: "Rencontre",   color: "var(--c-rencontre)",   w: 11 },
+  enigme:      { label: "Énigme",      color: "var(--c-enigme)",      w: 8 },
+  malediction: { label: "Malédiction", color: "var(--c-malediction)", w: 8 },
+  tresor:      { label: "Trésor",      color: "var(--c-tresor)",      w: 8 },
+  chasseur:    { label: "Chasseur",    color: "var(--c-chasseur)",    w: 7 },
+  repit:       { label: "Répit",       color: "var(--c-repit)",       w: 9 }
+};
+
+const EVENTS = {
+  bete: [
+    ["Sa crinière est d'or, sa patience est courte ; quand il rugit, mieux vaut changer de route.", "Un lion bloque le passage. Jet d'agilité ou de ruse pour le contourner, sinon une vie perdue."],
+    ["Ils viennent par milliers, la terre en tremble ; courez tous, et surtout courez ensemble.", "Une ruée de bêtes traverse la zone. Tout le groupe fuit ; le plus lent perd une vie."],
+    ["Huit pattes velues, un corps comme un poing ; la toile se referme, il n'est jamais loin.", "Des araignées géantes. Un joueur est pris dans une toile tant qu'un autre ne l'a pas libéré."],
+    ["Ils crient, ils pillent, ils ne respectent rien ; tenez bien vos sacs, ces singes sont des vauriens.", "Une bande de singes vole un objet au hasard. Il faut les poursuivre pour le récupérer."],
+    ["Dans l'eau qui dort, deux yeux sans paupières ; ne vous penchez pas trop au-dessus de la rivière.", "Un crocodile garde le gué. Traverser coûte un jet risqué ou un long détour."],
+    ["Des moustiques géants, gros comme des oiseaux ; leur piqûre donne fièvre et rêves de chaos.", "Le joueur piqué agit au hasard à son prochain tour (le MJ tire son action)."],
+    ["Il dort enroulé, long comme une rivière ; marchez sans bruit, ou finissez dans sa tanière.", "Un serpent géant. Jet de discrétion pour tout le groupe ; un seul échec le réveille."],
+    ["Des rhinos blindés chargent sans prévenir ; quand le sol tremble, il faut savoir bondir.", "Charge de rhinocéros. Chaque joueur fait un jet d'agilité ; un échec coûte une vie."],
+    ["Une ombre plane, des ailes immenses ; ce qui tombe du ciel n'a aucune clémence.", "Un rapace géant emporte un objet, ou le joueur le plus léger, jusqu'à son nid."]
+  ],
+  plante: [
+    ["Ses fleurs sont belles, son parfum est doux ; approchez un peu, elle a faim de vous.", "Une plante carnivore happe le joueur le plus proche. Les autres ont un tour pour le sortir."],
+    ["Les lianes s'étirent comme des doigts verts ; qui reste immobile finit à l'envers.", "Des lianes vivantes. Chaque joueur qui ne bouge pas ce tour-ci est suspendu et passe son tour."],
+    ["Une graine éclate, pique et endort ; qui la touche rêve, et rêve encore.", "Un joueur s'endort pour deux tours, sauf si quelqu'un trouve un moyen de le réveiller."],
+    ["Des champignons luisent comme des lanternes ; qui en goûte un voit danser les cavernes.", "Hallucinations : pendant un tour, le MJ décrit au joueur une fausse scène qu'il est seul à voir."],
+    ["Ce fruit rouge brille, sucré comme le miel ; une bouchée suffit pour toucher le ciel.", "Le joueur qui le mange flotte pendant deux tours. Utile pour franchir un obstacle, dangereux près du vide."],
+    ["Les ronces poussent plus vite qu'on ne court ; le chemin se ferme, cherchez un détour.", "Le passage est bloqué. Il faut tailler (outil ou jet de force) ou perdre un tour à contourner."]
+  ],
+  element: [
+    ["Le ciel se fend, la pluie devient torrent ; montez plus haut, ou suivez le courant.", "Une crue soudaine. Grimper (jet de force) ou être emporté deux cases en arrière."],
+    ["Le sol gronde et fume sous vos pieds ; la montagne s'éveille, il faut se presser.", "Le volcan se réveille. Le groupe a trois tours pour quitter la zone."],
+    ["Un vent brûlant se lève de l'est ; quand il passe, plus rien ne reste.", "Une tempête de chaleur. Chaque joueur perd un objet ou une vie, au choix."],
+    ["Le brouillard tombe, épais comme du lait ; chacun s'égare sans le faire exprès.", "Le groupe est séparé. Chaque joueur joue seul jusqu'à ce qu'ils se retrouvent."],
+    ["La foudre cherche ce qui brille et ce qui dépasse ; couchez-vous, et laissez passer la menace.", "Orage. Le joueur qui porte un objet en métal fait un jet ; un échec coûte une vie."],
+    ["La rivière gèle en plein midi ; la jungle a froid, et vous aussi.", "Gel soudain. Les jets physiques sont plus durs jusqu'au prochain tour, mais la rivière devient traversable."]
+  ],
+  piege: [
+    ["Une dalle s'enfonce, un déclic retentit ; le temple se souvient de ceux qu'il a punis.", "Un piège à fléchettes. Jet de réflexes pour chaque joueur, sinon une vie perdue."],
+    ["Les murs se resserrent, le plafond descend ; trouvez la sortie, il est encore temps.", "Une salle qui se referme. Le groupe doit résoudre une énigme du MJ en trois essais."],
+    ["Ce sable est doux, ce sable est traître ; plus on se débat, plus il vous fait disparaître.", "Sables mouvants. Le joueur piégé ne doit rien faire ; un autre doit le tirer avec une corde ou une liane."],
+    ["Un fil invisible tendu au ras du sol ; un pas de travers, et c'est l'envol.", "Un filet hisse un joueur dans les arbres. Les autres doivent trouver comment le descendre."],
+    ["Les statues de pierre ont des yeux qui suivent ; elles avancent dès que vos regards dérivent.", "Statues gardiennes. Pour traverser la salle, quelqu'un doit toujours les regarder ; le groupe s'organise."]
+  ],
+  rencontre: [
+    ["Un étrange guide répète toujours le même mot ; il ne dit rien d'autre, mais il ne dit rien de faux.", "Un PNJ en boucle. Il ne connaît qu'une réplique, mais elle cache un indice pour ce niveau."],
+    ["Une tribu masquée vous barre le chemin ; offrez un présent, ou repartez demain.", "Négociation : donner un objet ou réussir un jet de charisme, sinon le groupe recule d'une case."],
+    ["Un explorateur hirsute sort des fourrés ; il connaît la jungle, il y est enfermé.", "Un PNJ coincé dans le jeu depuis des années. Il donne un conseil précieux, mais veut venir avec vous."],
+    ["Un marchand sourit sous son grand parasol ; il vend de tout, mais jamais pour une obole.", "Le marchand propose un objet utile contre une vie ou un objet du groupe."]
+  ],
+  enigme: [
+    ["J'ai des racines que nul ne voit, je dépasse les arbres ; je monte sans cesse, et pourtant je ne grandis pas.", "Énigme. Réponse : la montagne. Bonne réponse : le groupe avance de deux cases. Mauvaise : une vie perdue."],
+    ["Plus on m'en retire, plus je deviens grand ; qui suis-je ? Répondez maintenant.", "Énigme. Réponse : un trou. Bonne réponse : un objet gagné. Mauvaise : un tour passé."],
+    ["Je parle sans bouche, j'entends sans oreilles ; je n'ai pas de corps, mais le vent me réveille.", "Énigme. Réponse : l'écho. Bonne réponse : une vie regagnée. Mauvaise : le chasseur avance d'une case."]
+  ],
+  malediction: [
+    ["Celui qui triche verra sa peau changer ; poils, griffes ou queue, à toi de deviner.", "Le dernier joueur à avoir enfreint une règle subit une transformation partielle jusqu'à la fin du niveau."],
+    ["Ta voix s'envole comme un oiseau ; parle avec les mains jusqu'au prochain niveau.", "Le joueur ne peut plus parler jusqu'au niveau suivant. Il communique uniquement par gestes."],
+    ["Ton ombre s'en va et marche sans toi ; rattrape-la avant qu'elle ne choisisse pour toi.", "L'ombre du joueur agit seule une fois par tour : c'est le MJ qui décide de son action."],
+    ["Le temps recule d'un pas pour vous tous ; ce que vous aviez gagné retourne à la source.", "Le groupe recule de trois cases."]
+  ],
+  tresor: [
+    ["Sous la mousse dort un coffre oublié ; il s'ouvre pour qui sait le mériter.", "Un coffre fermé par une petite énigme du MJ. Dedans : un objet utile pour ce niveau."],
+    ["Une carte gravée sur un vieux bouclier ; elle montre un passage que nul n'a emprunté.", "Le groupe gagne un raccourci secret, utilisable une fois dans le niveau."],
+    ["Une pierre verte bat comme un cœur ; elle protège, mais elle se nourrit de peur.", "Talisman : il annule une perte de vie, une seule fois."]
+  ],
+  chasseur: [
+    ["Son fusil est chargé, il sait qui vous êtes ; le chasseur vous traque, baissez la tête.", "Le chasseur entre en jeu. Il avance d'une case à chaque tour vers le groupe."],
+    ["Il a suivi vos traces jusqu'ici ; son filet est tendu, et vous êtes pris.", "Un joueur est capturé. Les autres doivent le libérer avant la fin du prochain tour."],
+    ["Ses chiens ont flairé l'odeur de vos pas ; courez vers l'eau, ils ne vous suivront pas.", "Les chiens du chasseur. Le groupe doit atteindre un point d'eau en deux tours."],
+    ["Un avis est cloué sur le tronc d'un figuier ; vos visages y sont, et une prime à côté.", "Vos têtes sont mises à prix. Le prochain PNJ rencontré peut vous trahir."]
+  ],
+  repit: [
+    ["Un sentier caché s'ouvre sous les fougères ; la jungle, pour une fois, se montre hospitalière.", "Raccourci : le groupe avance de deux cases."],
+    ["Une source claire chante entre les pierres ; buvez et soignez vos blessures d'hier.", "Chaque joueur regagne une vie (sans dépasser le maximum)."],
+    ["Un vieil abri de pierre, sec et silencieux ; dormez une nuit, demain ira mieux.", "Repos : chaque joueur récupère une vie ou un objet perdu."],
+    ["Un éléphant blessé vous regarde sans crainte ; soignez-le, il gardera votre empreinte.", "Si le groupe le soigne, l'éléphant devient un allié pour tout le niveau."]
+  ]
+};
+
+// Tirage varié : jamais deux fois la même catégorie d'affilée,
+// et chaque événement ne revient qu'une fois toute sa catégorie épuisée.
+let lastCat = null;
+const bags = {};
+let custom = [];      // événements du MJ : {id, cat, verse, effet}
+let onlyOwn = false;
+
+// Réserve de tirage d'une catégorie : base + événements du MJ (ou seulement ceux du MJ)
+function poolFor(cat) {
+  const mine = custom.filter(c => c.cat === cat).map(c => [c.verse, c.effet]);
+  return onlyOwn ? mine : EVENTS[cat].concat(mine);
+}
+function drawCategory() {
+  let keys = Object.keys(CAT).filter(k => poolFor(k).length);
+  if (keys.length > 1) keys = keys.filter(k => k !== lastCat);
+  const total = keys.reduce((s, k) => s + CAT[k].w, 0);
+  let r = Math.random() * total;
+  for (const k of keys) { r -= CAT[k].w; if (r < 0) return k; }
+  return keys[keys.length - 1];
+}
+function drawEvent(cat) {
+  const pool = poolFor(cat);
+  if (!bags[cat] || !bags[cat].length) bags[cat] = pool.map((_, i) => i).sort(() => Math.random() - .5);
+  return pool[bags[cat].pop()] || pool[0];
+}
+function resetBags() { for (const k in bags) delete bags[k]; }
+
+const $ = id => document.getElementById(id);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let turns = [], view = -1, cardOpen = false, busy = false, audio = null;
+
+// Graduations dessinées à la main autour de l'anneau
+(function ticks() {
+  const g = $("ticks"), n = 44;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (Math.random() - .5) * .04;
+    const r1 = 170 + Math.random() * 3, r2 = 196 + Math.random() * 8;
+    const bend = (Math.random() - .5) * .05;
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", 230 + Math.cos(a) * r1); l.setAttribute("y1", 230 + Math.sin(a) * r1);
+    l.setAttribute("x2", 230 + Math.cos(a + bend) * r2); l.setAttribute("y2", 230 + Math.sin(a + bend) * r2);
+    g.appendChild(l);
+  }
+})();
+
+// Texte doré ondulant
+function wavy(text) {
+  const msg = $("msg");
+  msg.innerHTML = "";
+  let k = 0;
+  text.toUpperCase().split(" ").forEach(word => {
+    const w = document.createElement("span"); w.className = "w";
+    [...word].forEach((c, i) => {
+      const s = document.createElement("span"); s.className = "ch"; s.textContent = c;
+      // les lettres remontent une à une, avec un léger désordre
+      s.style.setProperty("--d", Math.min(k++ * 50, 4000) + Math.random() * 400 + "ms");
+      s.style.setProperty("--sx", (Math.random() - .5) * 60 + "px");
+      s.style.setProperty("--sy", 10 + Math.random() * 30 + "px");
+      s.style.setProperty("--r", (Math.random() - .5) * 70 + "deg");
+      s.style.fontSize = (i === 0 ? 1.12 : .86 + Math.random() * .12) + "em";
+      s.style.transform = `translateY(${(Math.random() - .5) * 3.5}px) rotate(${(Math.random() - .5) * 6}deg)`;
+      w.appendChild(s);
+    });
+    msg.appendChild(w); msg.appendChild(document.createTextNode(" "));
+  });
+}
+
+function drum() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    [0, .18, .36].forEach((t, i) => {
+      const o = audio.createOscillator(), g = audio.createGain(), now = audio.currentTime + t;
+      o.type = "sine";
+      o.frequency.setValueAtTime(i === 2 ? 70 : 95, now);
+      o.frequency.exponentialRampToValueAtTime(40, now + .3);
+      g.gain.setValueAtTime(i === 2 ? .7 : .45, now);
+      g.gain.exponentialRampToValueAtTime(.001, now + .35);
+      o.connect(g).connect(audio.destination);
+      o.start(now); o.stop(now + .4);
+    });
+  } catch (e) {}
+}
+
+function nudge(id) { const el = $(id); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); }
+
+// Met à jour tout ce qui entoure le cercle
+function update() {
+  const t = turns[view], latest = view === turns.length - 1;
+  $("turn").textContent = turns.length ? `Tour ${view + 1} / ${turns.length}` : "Aucun tour";
+  $("turn").classList.toggle("past", turns.length > 0 && !latest);
+  $("prev").disabled = view <= 0;
+  $("next").disabled = !!(t && latest && !t.revealed);
+  $("reset").hidden = turns.length === 0;
+
+  const step = $("step");
+  step.classList.remove("alert");
+  if (!t) step.textContent = "";
+  else if (!latest) step.textContent = "Tour passé. Glissez vers la gauche pour revenir au présent.";
+  else if (!t.revealed) { step.textContent = "Joueurs, lisez l'énigme, puis passez l'écran au MJ."; step.classList.add("alert"); }
+  else step.textContent = "Au joueur suivant.";
+
+  const mj = $("mj");
+  mj.hidden = !t;
+  mj.classList.toggle("open", cardOpen);
+  mj.classList.toggle("waiting", !!(t && latest && !t.revealed && !cardOpen));
+  $("mjLabel").textContent = cardOpen ? "Masquer l'effet" : "MJ · Révéler l'effet";
+
+  $("card").hidden = !(t && cardOpen);
+  if (t) {
+    $("tag").textContent = CAT[t.cat].label;
+    $("blob").style.background = CAT[t.cat].color;
+    $("effet").innerHTML = `<b>Effet :</b> ${t.effet}`;
+  }
+}
+
+// Les lettres coulent dans le sens du geste, puis les nouvelles remontent de l'autre côté
+function swapText(text, dir, delay, onShown) {
+  const msg = $("msg");
+  busy = true;
+  msg.style.setProperty("--dx", dir === "left" ? "-26px" : dir === "right" ? "26px" : "0px");
+  msg.querySelectorAll(".ch").forEach(c => c.style.setProperty("--d", Math.random() * 800 + "ms"));
+  msg.classList.remove("enter");
+  void msg.offsetWidth;
+  msg.classList.add("leave");
+  $("glow").style.opacity = ".12";
+  setTimeout(() => {
+    wavy(text);
+    msg.classList.remove("leave");
+    void msg.offsetWidth;
+    msg.classList.add("enter");
+    $("glow").style.opacity = ".42";
+    busy = false;
+    if (onShown) onShown();
+  }, reduce ? 1200 : delay);
+}
+
+function newTurn(dir) {
+  // La liste préparée par le MJ passe avant le hasard
+  const planned = plan[planPos];
+  let cat, verse, effet;
+  if (planned && !planned.random) {
+    ({ cat, verse, effet } = planned);
+  } else {
+    cat = drawCategory();
+    if (!cat) {
+      $("step").textContent = "Aucun événement à tirer : ajoutez-en un, ou décochez « Ne tirer que mes événements ».";
+      nudge("step");
+      return;
+    }
+    [verse, effet] = drawEvent(cat);
+  }
+  if (planned) { planPos++; renderPlan(); }
+  lastCat = cat;
+  turns.push({ cat, verse, effet, revealed: false });
+  view = turns.length - 1;
+  cardOpen = false;
+  drum();
+  const orb = $("orb");
+  orb.classList.remove("rolling"); void orb.offsetWidth; orb.classList.add("rolling");
+  update();
+  $("mj").hidden = true;
+  $("step").textContent = "";
+  swapText(verse, dir, 2800, update);
+}
+
+function next(dir = "left") {
+  if (busy) return;
+  const t = turns[view];
+  if (view < turns.length - 1) { view++; cardOpen = false; update(); swapText(turns[view].verse, dir, 2600); return; }
+  if (t && !t.revealed) { nudge("step"); return; }
+  newTurn(dir);
+}
+
+function prev(dir = "right") {
+  if (busy) return;
+  if (view <= 0) { nudge("turn"); return; }
+  view--; cardOpen = false; update();
+  swapText(turns[view].verse, dir, 2600);
+}
+
+$("mj").addEventListener("click", () => {
+  const t = turns[view];
+  if (!t) return;
+  cardOpen = !cardOpen;
+  if (cardOpen) t.revealed = true;
+  update();
+});
+
+// Gestes : glisser à gauche = tour suivant, glisser à droite = tour précédent
+let touch = null, swallowClick = false;
+$("orb").addEventListener("touchstart", e => { const t = e.touches[0]; touch = { x: t.clientX, y: t.clientY }; }, { passive: true });
+$("orb").addEventListener("touchend", e => {
+  if (!touch) return;
+  const t = e.changedTouches[0], dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+  touch = null;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    swallowClick = true;
+    setTimeout(() => { swallowClick = false; }, 400);
+    dx < 0 ? next("left") : prev("right");
+  }
+});
+$("orb").addEventListener("click", () => { if (!swallowClick) next(null); });
+$("next").addEventListener("click", () => next("left"));
+$("prev").addEventListener("click", () => prev("right"));
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") next("left");
+  if (e.key === "ArrowLeft") prev("right");
+});
+
+// Nouvelle partie : deux appuis pour confirmer
+let confirmTimer = null;
+$("reset").addEventListener("click", () => {
+  const r = $("reset");
+  if (!r.classList.contains("confirm")) {
+    r.classList.add("confirm"); r.textContent = "Appuyez encore pour tout effacer";
+    confirmTimer = setTimeout(() => { r.classList.remove("confirm"); r.textContent = "Nouvelle partie"; }, 3000);
+    return;
+  }
+  clearTimeout(confirmTimer);
+  r.classList.remove("confirm"); r.textContent = "Nouvelle partie";
+  turns = []; view = -1; cardOpen = false; lastCat = null; for (const k in bags) delete bags[k];
+  planPos = 0; renderPlan();
+  swapText(IDLE, null, 2600);
+  update();
+});
+
+// ---------- Mes événements (MJ) ----------
+// Stockés dans l'espace privé du MJ (personne d'autre ne les voit).
+// Sans connexion, repli sur la mémoire de cet appareil.
+const LS_KEY = "cercle-jungle-mes-evenements";
+let store = null; // { add(ev), remove(id) }
+
+Object.entries(CAT).forEach(([k, c]) => {
+  const o = document.createElement("option"); o.value = k; o.textContent = c.label; $("ownCat").appendChild(o);
+});
+
+function renderOwn() {
+  $("ownCount").textContent = custom.length ? `(${custom.length})` : "";
+  const ul = $("ownList");
+  ul.innerHTML = "";
+  if (!custom.length) {
+    const li = document.createElement("li"); li.className = "own-empty";
+    li.textContent = "Aucun événement personnel pour l'instant.";
+    ul.appendChild(li);
+    return;
+  }
+  custom.forEach(ev => {
+    const li = document.createElement("li");
+    const tag = document.createElement("span"); tag.className = "tag";
+    const blob = document.createElement("span"); blob.className = "blob"; blob.style.background = CAT[ev.cat].color;
+    tag.append(blob, CAT[ev.cat].label);
+    const v = document.createElement("span"); v.className = "v"; v.textContent = ev.verse;
+    const e = document.createElement("span"); e.className = "e"; e.textContent = "Effet : " + ev.effet;
+    const del = document.createElement("button"); del.className = "del"; del.type = "button"; del.textContent = "Supprimer";
+    del.addEventListener("click", () => {
+      if (del.dataset.armed) { store.remove(ev.id); return; }
+      del.dataset.armed = "1"; del.textContent = "Appuyez encore pour supprimer";
+      setTimeout(() => { delete del.dataset.armed; del.textContent = "Supprimer"; }, 3000);
+    });
+    li.append(tag, v, e, del);
+    ul.appendChild(li);
+  });
+}
+
+function setCustom(list) {
+  custom = list.filter(ev => CAT[ev.cat] && ev.verse && ev.effet);
+  resetBags();
+  renderOwn();
+  renderFilterRow();
+  renderPick();
+}
+
+const LS_PLAN = "cercle-jungle-plan";
+function localStore() {
+  const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || d); } catch (e) { return JSON.parse(d); } };
+  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  setCustom(read(LS_KEY, "[]"));
+  setPlan(read(LS_PLAN, "[]"));
+  return {
+    local: true,
+    async add(ev) { const list = read(LS_KEY, "[]"); list.push({ id: "e" + Date.now() + Math.random().toString(36).slice(2, 6), ...ev }); if (!write(LS_KEY, list)) throw new Error("local"); setCustom(list); },
+    async remove(id) { const list = read(LS_KEY, "[]").filter(x => x.id !== id); write(LS_KEY, list); setCustom(list); },
+    async savePlan(items) { write(LS_PLAN, items); }
+  };
+}
+
+async function initStore() {
+  try {
+    const [db, user] = await Promise.all([claude.use("db"), claude.use("user")]);
+    const uid = user ? await user.id() : null;
+    if (db && uid) {
+      const col = db.collection("data/users/" + uid);
+      const planDoc = col.doc("plan");
+      let dbOff = false;
+      const fallback = () => { store = localStore(); $("ownNote").textContent = "Enregistrés sur cet appareil seulement."; };
+      col.onSnapshot(
+        snap => dbOff || setCustom(snap.docs.filter(d => d.id !== "plan").map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))),
+        fallback
+      );
+      planDoc.onSnapshot(snap => { if (!planSaving && !dbOff) setPlan(snap.exists ? (snap.data().items || []) : []); }, () => {});
+      // Un visiteur qui n'a pas le droit d'écrire en ligne (lien public, lecture seule)
+      // garde ses événements sur son appareil, sans perdre ce qu'il vient de saisir.
+      const toLocal = () => {
+        dbOff = true;
+        const keepPlan = plan.slice();
+        store = localStore();
+        if (keepPlan.length && !plan.length) { setPlan(keepPlan); store.savePlan(keepPlan); }
+        $("tplNote").textContent = "Vos événements sont enregistrés sur cet appareil seulement.";
+        return store;
+      };
+      const denied = err => err && (err.code === "invalid_argument" || err.code === "not_granted" || err.code === "revoked");
+      return {
+        async add(ev) {
+          try { await col.add({ ...ev, createdAt: Date.now() }); }
+          catch (err) { if (denied(err)) return toLocal().add(ev); throw err; }
+        },
+        async remove(id) { await col.doc(id).delete(); },
+        async savePlan(items) {
+          try { await planDoc.set({ items }); }
+          catch (err) { if (denied(err)) return toLocal().savePlan(items); throw err; }
+        }
+      };
+    }
+  } catch (e) {}
+  return null;
+}
+
+// ---------- Préparer la partie ----------
+let plan = [];      // [{cat, verse, effet} | {random: true}]
+let planPos = 0;    // nombre d'éléments de la liste déjà joués dans cette partie
+let planSaving = false, planTimer = null;
+
+function setPlan(items) {
+  plan = (Array.isArray(items) ? items : []).filter(it => it.random || (CAT[it.cat] && it.verse && it.effet));
+  if (planPos > plan.length) planPos = plan.length;
+  renderPlan();
+}
+
+// Une seule écriture par pause, après la dernière modification
+function savePlan() {
+  renderPlan();
+  clearTimeout(planTimer);
+  planSaving = true;
+  planTimer = setTimeout(async () => {
+    try { await store.savePlan(plan.map(it => it.random ? { random: true } : { cat: it.cat, verse: it.verse, effet: it.effet })); }
+    catch (e) {}
+    planSaving = false;
+  }, 600);
+}
+
+function renderPlan() {
+  const left = Math.max(plan.length - planPos, 0);
+  $("planCount").textContent = plan.length ? `(${left} à venir sur ${plan.length})` : "";
+  $("planClear").hidden = plan.length === 0;
+  const ol = $("planList");
+  ol.innerHTML = "";
+  if (!plan.length) {
+    const p = document.createElement("li"); p.className = "plan-empty"; p.style.border = "none"; p.style.padding = "0";
+    p.textContent = "Liste vide : tous les tours sont tirés au hasard.";
+    p.style.display = "block";
+    ol.appendChild(p);
+  }
+  plan.forEach((it, i) => {
+    const li = document.createElement("li");
+    if (i < planPos) li.classList.add("done");
+    if (i === planPos) li.classList.add("next");
+    const body = document.createElement("div"); body.className = "body";
+    const tag = document.createElement("span"); tag.className = "tag";
+    if (it.random) {
+      tag.textContent = "Au hasard";
+      body.append(tag);
+    } else {
+      const blob = document.createElement("span"); blob.className = "blob"; blob.style.background = CAT[it.cat].color;
+      tag.append(blob, CAT[it.cat].label);
+      const v = document.createElement("span"); v.className = "v"; v.textContent = it.verse;
+      body.append(tag, v);
+    }
+    const tools = document.createElement("div"); tools.className = "tools";
+    const mk = (label, aria, fn, disabled) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "mini"; b.textContent = label;
+      b.setAttribute("aria-label", aria); b.disabled = disabled; b.addEventListener("click", fn); return b;
+    };
+    const locked = i < planPos;
+    tools.append(
+      mk("↑", "Monter", () => { [plan[i - 1], plan[i]] = [plan[i], plan[i - 1]]; savePlan(); }, locked || i - 1 < planPos),
+      mk("↓", "Descendre", () => { [plan[i + 1], plan[i]] = [plan[i], plan[i + 1]]; savePlan(); }, locked || i === plan.length - 1),
+      mk("✕", "Retirer", () => { plan.splice(i, 1); savePlan(); }, locked)
+    );
+    li.append(body, tools);
+    ol.appendChild(li);
+  });
+}
+
+// Icônes à l'encre pour chaque catégorie
+const ICONS = {
+  mine: '<path d="M20 4c-6 1-11 6-13 13l-2 3 3-2c7-2 12-7 12-14z"/><path d="M8 16l6-6"/>',
+  bete: '<ellipse cx="12" cy="16" rx="4" ry="3.2"/><circle cx="6" cy="10.5" r="1.7"/><circle cx="10" cy="7" r="1.7"/><circle cx="14" cy="7" r="1.7"/><circle cx="18" cy="10.5" r="1.7"/>',
+  plante: '<path d="M5 19C5 10 11 5 20 5c0 9-5 14-14 14z"/><path d="M5 19l9-9"/>',
+  element: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+  piege: '<path d="M3 20h18"/><path d="M5 20l2.5-9L10 20M10 20l2-12 2 12M14 20l2.5-9L19 20"/>',
+  rencontre: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/>',
+  enigme: '<path d="M9 9a3 3 0 1 1 4 2.8c-1 .5-1 1.2-1 2.2"/><circle cx="12" cy="18" r=".9" fill="currentColor"/>',
+  malediction: '<path d="M12 12a1.5 1.5 0 1 1 1.5-1.5 3 3 0 1 1-3 3 4.5 4.5 0 1 1 4.5-4.5 6 6 0 1 1-6 6"/>',
+  tresor: '<rect x="4" y="10" width="16" height="9" rx="1"/><path d="M4 10a8 5 0 0 1 16 0M4 13h16"/><path d="M11 12h2v3h-2z"/>',
+  chasseur: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+  repit: '<path d="M12 3c3 5 6 8 6 11a6 6 0 0 1-12 0c0-3 3-6 6-11z"/>'
+};
+let pickFilter = "mine";
+
+function renderFilterRow() {
+  const row = $("planFilter");
+  row.innerHTML = "";
+  const entries = [["mine", { label: "Mes événements", color: "var(--ink)" }]].concat(Object.entries(CAT));
+  entries.forEach(([k, c]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "cat" + (k === "mine" ? " mine" : "");
+    b.setAttribute("aria-pressed", String(k === pickFilter));
+    b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg><span class="lbl"></span>${k === "mine" ? "" : '<span class="dot"></span>'}`;
+    b.querySelector(".lbl").textContent = k === "mine" ? `Les miens${custom.length ? " (" + custom.length + ")" : ""}` : c.label;
+    const dot = b.querySelector(".dot"); if (dot) dot.style.background = c.color;
+    b.addEventListener("click", () => { pickFilter = k; renderFilterRow(); renderPick(); });
+    row.appendChild(b);
+  });
+}
+
+function renderPick() {
+  const ul = $("planPick");
+  ul.innerHTML = "";
+  const items = pickFilter === "mine"
+    ? custom.map(c => ({ cat: c.cat, verse: c.verse, effet: c.effet, mine: true }))
+    : EVENTS[pickFilter].map(([verse, effet]) => ({ cat: pickFilter, verse, effet, mine: false }))
+        .concat(custom.filter(c => c.cat === pickFilter).map(c => ({ cat: c.cat, verse: c.verse, effet: c.effet, mine: true })));
+  if (!items.length) {
+    const li = document.createElement("li"); li.className = "plan-empty"; li.style.display = "block"; li.style.border = "none";
+    li.textContent = "Vous n'avez pas encore d'événement à vous. Créez-en dans le panneau « Mes événements » juste au-dessus.";
+    ul.appendChild(li);
+    return;
+  }
+  items.forEach(it => {
+    const li = document.createElement("li");
+    const v = document.createElement("span"); v.className = "v";
+    v.textContent = it.verse;
+    const small = document.createElement("small");
+    small.textContent = (pickFilter === "mine" ? CAT[it.cat].label + " · " : it.mine ? "Mon événement · " : "") + it.effet;
+    v.appendChild(small);
+    const add = document.createElement("button"); add.type = "button"; add.className = "add"; add.textContent = "Ajouter";
+    add.addEventListener("click", () => {
+      plan.push({ cat: it.cat, verse: it.verse, effet: it.effet });
+      savePlan();
+      add.classList.add("ok"); add.textContent = `Ajouté (n° ${plan.length})`;
+      setTimeout(() => { add.classList.remove("ok"); add.textContent = "Ajouter"; }, 1600);
+    });
+    li.append(v, add);
+    ul.appendChild(li);
+  });
+}
+
+renderFilterRow();
+$("planRandom").addEventListener("click", () => { plan.push({ random: true }); savePlan(); });
+$("planClear").addEventListener("click", () => {
+  const b = $("planClear");
+  if (!b.dataset.armed) {
+    b.dataset.armed = "1"; b.textContent = "Appuyez encore pour vider";
+    setTimeout(() => { delete b.dataset.armed; b.textContent = "Vider la liste"; }, 3000);
+    return;
+  }
+  delete b.dataset.armed; b.textContent = "Vider la liste";
+  plan = []; planPos = 0; savePlan();
+});
+
+store = localStore();
+if (window.claude && claude.use) {
+  initStore().then(s => { if (s) store = s; });
+}
+
+$("ownForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const verse = $("ownVerse").value.trim(), effet = $("ownEffet").value.trim(), cat = $("ownCat").value;
+  if (!verse || !effet) return;
+  const note = $("ownNote");
+  try {
+    await store.add({ cat, verse, effet });
+    $("ownVerse").value = ""; $("ownEffet").value = "";
+    note.textContent = "Ajouté. Il peut sortir dès le prochain tour.";
+  } catch (err) {
+    note.textContent = err && err.code === "quota_exceeded"
+      ? "Plus de place : supprimez quelques événements avant d'en ajouter."
+      : "L'ajout n'a pas marché. Réessayez dans un instant.";
+  }
+});
+
+// Bouton « Ajouter un événement » : ouvre ou ferme le formulaire
+function toggleForm(open) {
+  const f = $("ownForm"), b = $("ownToggle");
+  f.hidden = !open;
+  b.setAttribute("aria-expanded", String(open));
+  if (open) { $("importPreview").hidden = true; $("ownVerse").focus(); }
+}
+$("ownToggle").addEventListener("click", () => toggleForm($("ownForm").hidden));
+$("ownCancel").addEventListener("click", () => { toggleForm(false); $("ownNote").textContent = ""; });
+
+// ---------- Modèle de tableau : télécharger / importer ----------
+const TEMPLATE_EXAMPLES = [
+  ["Bête", "Exemple : Un tambour résonne sous la terre ; quand il se tait, gare à la poussière.", "Exemple : Un éboulement bloque le tunnel. Jet de force pour dégager le passage."],
+  ["Rencontre", "Exemple : Une vieille pêcheuse chante au bord de l'eau ; sa chanson indique où trouver le gué.", "Exemple : Si le groupe l'écoute jusqu'au bout, il traverse la rivière sans jet."]
+];
+const csvCell = v => /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+
+// Le tableau reprend vos événements s'il y en a (sauvegarde, transfert d'un appareil à l'autre),
+// sinon deux lignes d'exemple.
+function buildTemplate() {
+  const cats = Object.values(CAT).map(c => c.label);
+  const rows = [["Catégorie", "Énigme (lue par les joueurs)", "Effet (pour le MJ)", "", "Catégories possibles"]];
+  const filled = custom.length ? custom.map(c => [CAT[c.cat].label, c.verse, c.effet]) : TEMPLATE_EXAMPLES;
+  const n = Math.max(filled.length + 20, cats.length);
+  for (let i = 0; i < n; i++) {
+    const ex = filled[i] || ["", "", ""];
+    rows.push([ex[0], ex[1], ex[2], "", cats[i] || ""]);
+  }
+  // point-virgule + BOM : s'ouvre correctement dans Excel en français
+  return "﻿" + rows.map(r => r.map(csvCell).join(";")).join("\r\n") + "\r\n";
+}
+
+$("tplDownload").addEventListener("click", async () => {
+  const note = $("tplNote");
+  const csv = buildTemplate();
+  const filename = custom.length ? "mes-evenements-cercle-jungle.csv" : "modele-evenements-cercle-jungle.csv";
+  const done = custom.length
+    ? `Tableau prêt, avec vos ${custom.length} événement${custom.length > 1 ? "s" : ""}. Ajoutez des lignes, puis importez-le.`
+    : "Modèle prêt. Remplissez une ligne par événement, puis importez-le.";
+  const inArtifact = !!(window.claude && window.claude.use);
+  if (inArtifact) {
+    try {
+      const downloads = await claude.use("downloads");
+      if (downloads) { await downloads.save({ filename, data: csv }); note.textContent = done; return; }
+    } catch (err) {
+      if (err && err.code === "declined") { note.textContent = ""; return; }
+    }
+  } else {
+    // Appli installée ou navigateur : partage natif (iPhone) ou téléchargement classique
+    const file = new File([csv], filename, { type: "text/csv" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Événements – Le Cercle de la Jungle" });
+        note.textContent = done; return;
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+    try {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      note.textContent = done; return;
+    } catch (e) {}
+  }
+  try {
+    await navigator.clipboard.writeText(csv.replace(/^﻿/, ""));
+    note.textContent = "Le téléchargement n'est pas possible ici. Le tableau a été copié : collez-le dans un tableur.";
+  } catch (e) {
+    note.textContent = "Le téléchargement n'est pas possible ici. Créez un tableau avec trois colonnes : Catégorie, Énigme, Effet.";
+  }
+});
+
+// Lecture CSV avec guillemets ; séparateur détecté (; , ou tabulation)
+function parseCSV(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/)[0] || "";
+  const sep = [";", "\t", ","].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === sep) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function loadSheetJS() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => ok(window.XLSX); s.onerror = ko;
+    document.head.appendChild(s);
+  });
+}
+
+const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+function matchCat(v) {
+  const n = norm(v).replace(/s$/, "");
+  if (!n) return null;
+  for (const [k, c] of Object.entries(CAT)) {
+    const l = norm(c.label);
+    if (n === l || n === k || l.startsWith(n) || n.startsWith(l)) return k;
+  }
+  return null;
+}
+
+let importReady = [];
+function previewImport(rows) {
+  const found = [], skipped = [];
+  const known = new Set(custom.map(c => norm(c.verse)));
+  rows.forEach((r, i) => {
+    const [c, v, e] = [r[0], r[1], r[2]].map(x => String(x ?? "").trim());
+    if (i === 0 && norm(c).startsWith("categ")) return;          // en-tête
+    if (!c && !v && !e) return;                                   // ligne vide
+    if (norm(v).startsWith("exemple") || norm(e).startsWith("exemple")) return; // lignes d'exemple
+    const cat = matchCat(c);
+    if (!cat) { skipped.push(`ligne ${i + 1} : catégorie « ${c || "vide"} » inconnue`); return; }
+    if (!v || !e) { skipped.push(`ligne ${i + 1} : ${!v ? "énigme" : "effet"} manquant`); return; }
+    if (known.has(norm(v))) { skipped.push(`ligne ${i + 1} : déjà dans vos événements`); return; }
+    known.add(norm(v));
+    found.push({ cat, verse: v.slice(0, 220), effet: e.slice(0, 400) });
+  });
+  importReady = found;
+  const box = $("importPreview");
+  toggleForm(false);
+  box.hidden = false;
+  $("ipSum").textContent = found.length
+    ? `${found.length} événement${found.length > 1 ? "s" : ""} trouvé${found.length > 1 ? "s" : ""}.`
+    : "Aucun événement à importer dans ce fichier.";
+  const ul = $("ipList"); ul.innerHTML = "";
+  found.forEach(f => {
+    const li = document.createElement("li");
+    const b = document.createElement("b"); b.textContent = CAT[f.cat].label + " · ";
+    li.append(b, f.verse);
+    ul.appendChild(li);
+  });
+  $("ipSkip").hidden = !skipped.length;
+  $("ipSkip").textContent = skipped.length ? `Lignes ignorées — ${skipped.slice(0, 6).join(" ; ")}${skipped.length > 6 ? " …" : ""}` : "";
+  $("ipAdd").hidden = !found.length;
+  $("ipAdd").textContent = `Ajouter ${found.length > 1 ? "ces " + found.length + " événements" : "cet événement"}`;
+}
+
+$("tplFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const note = $("tplNote");
+  note.textContent = "Lecture du fichier…";
+  try {
+    let rows;
+    if (/\.xlsx?$/i.test(file.name)) {
+      const XLSX = await loadSheetJS();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+    } else {
+      rows = parseCSV(await file.text());
+    }
+    note.textContent = "";
+    previewImport(rows);
+  } catch (err) {
+    note.textContent = "Ce fichier n'a pas pu être lu. Utilisez le modèle, enregistré en .csv ou .xlsx.";
+  }
+});
+
+$("ipCancel").addEventListener("click", () => { importReady = []; $("importPreview").hidden = true; });
+$("ipAdd").addEventListener("click", async () => {
+  const btn = $("ipAdd"), list = importReady.slice();
+  btn.disabled = true;
+  let done = 0;
+  for (const ev of list) {
+    try { await store.add(ev); done++; btn.textContent = `Ajout… ${done} / ${list.length}`; }
+    catch (err) { break; }
+  }
+  btn.disabled = false;
+  importReady = [];
+  $("importPreview").hidden = true;
+  $("tplNote").textContent = done === list.length
+    ? `${done} événement${done > 1 ? "s" : ""} ajouté${done > 1 ? "s" : ""}.`
+    : `${done} sur ${list.length} ajoutés. Les autres n'ont pas pu être enregistrés ; réessayez l'import.`;
+});
+
+$("ownOnly").addEventListener("change", e => { onlyOwn = e.target.checked; resetBags(); lastCat = null; });
+
+renderOwn();
+wavy(IDLE);
+update();
+</script>
+
+<script>
+// Mode hors ligne
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>

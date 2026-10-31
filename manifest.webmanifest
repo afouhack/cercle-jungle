@@ -1,0 +1,17 @@
+{
+  "name": "Le Cercle de la Jungle",
+  "short_name": "Cercle Jungle",
+  "description": "Touchez le cercle, l'énigme remonte des profondeurs. Générateur d'événements pour vos parties de jeu de rôle dans la jungle.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbfaf7",
+  "theme_color": "#fbfaf7",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
